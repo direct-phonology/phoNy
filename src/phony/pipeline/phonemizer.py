@@ -187,7 +187,7 @@ class Phonemizer(TrainablePipe):
 @Language.factory(
     "phonemizer",
     assigns=["token._.phonemes"],
-    default_config={"scorer": {"@scorers": "phon_scorer.v1"}},
+    default_config={"scorer": {"@scorers": "phoneme_scorer.v1"}},
     default_score_weights={"phon_acc": 1.0},
 )
 def make_phonemizer(
