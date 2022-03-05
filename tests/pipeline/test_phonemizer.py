@@ -23,7 +23,7 @@ class TestPhonemizer(TestCase):
     def test_set_annotations(self):
         """should set provided annotations for provided list of docs"""
         doc = self.nlp.make_doc("one two three")
-        tag_ids = [0, 1, 2]  # wʌn, tuː, θriː
+        tag_ids = np.asarray([0, 1, 2])  # wʌn, tuː, θriː
         self.phonemizer.set_annotations([doc], [tag_ids])
         self.assertEqual(doc[0]._.phonemes, "wʌn")
         self.assertEqual(doc[1]._.phonemes, "tuː")
@@ -33,7 +33,7 @@ class TestPhonemizer(TestCase):
     def test_set_punct_annotations(self):
         """should not set an annotation for non-alphabetic tokens"""
         doc = self.nlp.make_doc("one. two")
-        tag_ids = [1, 1, 2]  # pretend we predicted "wʌn" for "."
+        tag_ids = np.asarray([1, 1, 2])  # pretend we predicted "wʌn" for "."
         self.phonemizer.set_annotations([doc], [tag_ids])
         self.assertEqual(doc[0]._.phonemes, "wʌn")
         self.assertEqual(doc[1]._.phonemes, None)

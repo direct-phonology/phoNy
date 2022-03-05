@@ -95,7 +95,7 @@ class Phonemizer(TrainablePipe):
         """Annotate a batch of Docs, using pre-computed IDs."""
         labels = self.labels
         for doc, doc_tag_ids in zip_longest(docs, tag_ids):
-            if not doc or not doc_tag_ids:
+            if not doc or not doc_tag_ids.any():
                 continue
             for token, tag_id in zip(list(doc), doc_tag_ids):
                 token._.phonemes = labels[tag_id]
