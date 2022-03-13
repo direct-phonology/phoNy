@@ -181,7 +181,7 @@ class Phonemizer(TrainablePipe):
         tag_count = 0
         for example in examples:
             tag_count += len(
-                list(filter(None, [token._.phonemes for token in example.reference]))
+                list(filter(None, [token._.phonemes for token in example.predicted]))
             )
         if tag_count == 0:
             return None
