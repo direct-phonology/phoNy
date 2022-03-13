@@ -149,7 +149,7 @@ class Phonemizer(TrainablePipe):
         # Read all unique tags from the examples and add them
         tags = set()
         for example in get_examples():
-            for token in example.reference:
+            for token in example.predicted:
                 if token._.phonemes:
                     tags.add(token._.phonemes)
         for tag in sorted(tags):
