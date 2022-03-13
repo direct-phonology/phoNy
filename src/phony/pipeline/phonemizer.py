@@ -10,7 +10,7 @@ from spacy.tokens import Doc, Token
 from spacy.training import Example, validate_examples, validate_get_examples
 from spacy.util import check_lexeme_norms, registry
 from spacy.vocab import Vocab
-from thinc.api import Model, SequenceCategoricalCrossentropy
+from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
 
 # register custom phonemes property
@@ -31,6 +31,23 @@ def phoneme_score(examples: Iterable[Example], **kwargs) -> Dict[str, Any]:
 @registry.scorers("phoneme_scorer.v1")
 def make_phoneme_scorer():
     return phoneme_score
+
+
+default_model_config = """
+[model]
+@architectures = "spacy.Tagger.v1"
+
+[model.tok2vec]
+@architectures = "spacy.HashEmbedCNN.v2"
+pretrained_vectors = null
+width = 96
+depth = 4
+embed_size = 2000
+window_size = 1
+maxout_pieces = 3
+subword_features = false
+"""
+DEFAULT_PHONEMIZER_MODEL = Config().from_str(default_model_config)["model"]
 
 
 class Phonemizer(TrainablePipe):
@@ -97,6 +114,8 @@ class Phonemizer(TrainablePipe):
         for doc, doc_tag_ids in zip_longest(docs, tag_ids):
             if not doc or not doc_tag_ids.any():
                 continue
+            if hasattr(doc_tag_ids, "get"):
+                doc_tag_ids = doc_tag_ids.get()
             for token, tag_id in zip(list(doc), doc_tag_ids):
                 token._.phonemes = labels[tag_id]
 
@@ -139,9 +158,16 @@ class Phonemizer(TrainablePipe):
         # Use the first 10 examples to sample Docs and labels
         doc_sample = []
         label_sample = []
+        n_labels = len(self.labels)
         for example in islice(get_examples(), 10):
             doc_sample.append(example.reference)
-            label_sample.append(self._examples_to_truth([example]))
+            labeled = self._examples_to_truth([example])
+            if labeled:
+                label_sample += labeled
+            else:
+                label_sample.append(
+                    self.model.ops.alloc2f(len(example.reference), n_labels)
+                )
 
         # Initialize the model
         self.model.initialize(X=doc_sample, Y=label_sample)
@@ -149,8 +175,17 @@ class Phonemizer(TrainablePipe):
     def _examples_to_truth(
         self,
         examples: Iterable[Example],
-    ) -> List[Floats2d]:
+    ) -> Optional[List[Floats2d]]:
         """Get the gold-standard labels for a batch of examples."""
+        # Handle cases where there are no annotations in any examples
+        tag_count = 0
+        for example in examples:
+            tag_count += len(
+                list(filter(None, [token._.phonemes for token in example.reference]))
+            )
+        if tag_count == 0:
+            return None
+
         # Get all the true labels
         truths = []
         for example in examples:
@@ -187,7 +222,10 @@ class Phonemizer(TrainablePipe):
 @Language.factory(
     "phonemizer",
     assigns=["token._.phonemes"],
-    default_config={"scorer": {"@scorers": "phoneme_scorer.v1"}},
+    default_config={
+        "model": DEFAULT_PHONEMIZER_MODEL,
+        "scorer": {"@scorers": "phoneme_scorer.v1"},
+    },
     default_score_weights={"phon_acc": 1.0},
 )
 def make_phonemizer(
