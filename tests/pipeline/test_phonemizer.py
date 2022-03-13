@@ -197,3 +197,65 @@ class TestPhonemizer(TestCase):
         example = Example.from_dict(doc, {})
         phonemizer.initialize(lambda: [example])
         phonemizer.model.initialize.assert_called_with(X=[doc], Y=ANY)
+
+    def test_initialize_no_data(self):
+        """should error if initialized with docs missing training data"""
+        nlp = spacy.blank("en")
+        doc = nlp.make_doc("one two three")
+        example = Example.from_dict(doc, {})
+        nlp.add_pipe("phonemizer")
+        with self.assertRaises(ValueError):
+            nlp.initialize(get_examples=lambda: [example])
+
+    def test_initialize_incomplete_data(self):
+        """should handle initialization with misaligned/partial training data"""
+        nlp = spacy.blank("en")
+        nlp.add_pipe("phonemizer")
+        doc1 = nlp.make_doc("one two three four")
+        doc2 = nlp.make_doc("on e two three four")
+        doc1[0]._.phonemes = "wʌn"
+        doc1[1]._.phonemes = "tuː"
+        doc1[2]._.phonemes = "θriː"
+        doc2[0]._.phonemes = "ɒn"
+        doc2[2]._.phonemes = "tuː"
+        doc2[3]._.phonemes = "θriː"
+        examples = [Example.from_dict(doc1, {}), Example.from_dict(doc2, {})]
+        optimizer = nlp.initialize(get_examples=lambda: examples)
+        for _ in range(50):
+            losses = {}
+            self.nlp.update(examples, sgd=optimizer, losses=losses)
+        self.assertLess(losses["phonemizer"], 0.00001)
+
+    @skip("todo")
+    def test_train(self):
+        """results after training should be predictable on sample data"""
+        nlp = spacy.blank("en")
+        phonemizer = nlp.add_pipe("phonemizer")
+        doc1 = nlp.make_doc("one two three")
+        doc2 = nlp.make_doc("three two one two")
+        doc1[0]._.phonemes = "wʌn"
+        doc1[1]._.phonemes = "tuː"
+        doc1[2]._.phonemes = "θriː"
+        doc2[0]._.phonemes = "θriː"
+        doc2[1]._.phonemes = "tuː"
+        doc2[2]._.phonemes = "wʌn"
+        doc2[3]._.phonemes = "tuː"
+        examples = [Example.from_dict(doc1, {}), Example.from_dict(doc2, {})]
+        optimizer = phonemizer.train(lambda: examples)
+        for _ in range(50):
+            losses = {}
+            phonemizer.update(examples, sgd=optimizer, losses=losses)
+
+    def test_train_empty_data(self):
+        """data with empty annotations shouldn't cause errors during training"""
+        nlp = spacy.blank("en")
+        phonemizer = nlp.add_pipe("phonemizer")
+        phonemizer.add_label("wʌn")
+        example = Example.from_dict(nlp.make_doc(""), {})
+        train_data = [example, example]
+        optimizer = nlp.initialize()
+        for _ in range(5):
+            losses = {}
+            batches = minibatch(train_data, size=compounding(4.0, 32.0, 1.001))
+            for batch in batches:
+                nlp.update(batch, sgd=optimizer, losses=losses)
