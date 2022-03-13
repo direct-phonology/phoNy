@@ -1,7 +1,7 @@
 from itertools import islice, zip_longest
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-import numpy
+import numpy as np
 from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
@@ -102,7 +102,7 @@ class Phonemizer(TrainablePipe):
         guesses = []
         for doc_scores in scores:
             doc_guesses = doc_scores.argmax(axis=1)
-            if not isinstance(doc_guesses, numpy.ndarray):
+            if not isinstance(doc_guesses, np.ndarray):
                 doc_guesses = doc_guesses.get()
             guesses.append(doc_guesses)
         assert len(guesses) == len(docs)
