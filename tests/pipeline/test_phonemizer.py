@@ -20,6 +20,22 @@ class TestPhonemizer(TestCase):
         self.phonemizer.add_label("tuː")
         self.phonemizer.add_label("θriː")
 
+
+class MockCupyNdarray:
+    def __init__(self, data: np.ndarray):
+        self.data = data
+
+    def get(self):
+        return self.data
+
+    def any(self):
+        return self.data.any()
+
+    def argmax(self, axis: int):
+        return MockCupyNdarray(np.argmax(self.data, axis=axis))
+
+
+class TestPhonemizer(TestCase):
     def test_set_annotations(self):
         """should set provided annotations for provided list of docs"""
         doc = self.nlp.make_doc("one two three")
@@ -75,19 +91,7 @@ class TestPhonemizer(TestCase):
 
     def test_predict_gpu(self):
         """should handle predictions made on the gpu"""
-
-        # create a mock version of cupy's ndarray that implements get()
-        class MockCupyNdarray:
-            def __init__(self, data: np.ndarray):
-                self.data = data
-
-            def get(self):
-                return self.data
-
-            def argmax(self, axis: int):
-                return MockCupyNdarray(np.argmax(self.data, axis=axis))
-
-        doc = self.nlp.make_doc("one two three")
+        phonemizer.model = Mock()
         predictions = [
             MockCupyNdarray(
                 np.array(
