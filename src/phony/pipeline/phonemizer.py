@@ -202,19 +202,29 @@ class Phonemizer(TrainablePipe):
 
     def _get_aligned_phonemes(self, example: Example) -> List[Optional[str]]:
         """Get the aligned phonology data for a training Example."""
-        alignment = example.alignment.x2y
-        gold_phon = [token._.phonemes for token in example.reference]
+        # adapted Doc.to_array() from:
+        # https://github.com/explosion/spaCy/blob/master/spacy/tokens/doc.pyx
+        gold_values = np.zeros((len(example.reference),), dtype=np.uint64)
+        for i, token in enumerate(example.reference):
+            if token._.phonemes:
+                gold_values[i] = token._.phonemes
+
+        # adapted Example.get_aligned() from:
+        # https://github.com/explosion/spaCy/blob/master/spacy/training/example.pyx
+        align = example.alignment.x2y
         output: List[Optional[str]] = [None] * len(example.predicted)
-
-        # Handle case where example has no tokens
-        if not output:
-            return []
-
         for token in example.predicted:
-            if not token.is_alpha:
+            values = gold_values[align[token.i].dataXd]
+            values = values.ravel()
+            if len(values) == 0:
                 output[token.i] = None
+            elif len(values) == 1:
+                output[token.i] = values[0]
+            elif len(set(list(values))) == 1:
+                # if all aligned tokens have the same value, use it
+                output[token.i] = values[0]
             else:
-                output[token.i] = gold_phon[alignment[token.i].dataXd[0][0]]
+                output[token.i] = None
 
         return output
 
