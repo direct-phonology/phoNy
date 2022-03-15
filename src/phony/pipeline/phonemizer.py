@@ -13,9 +13,10 @@ from spacy.vocab import Vocab
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
 
-# register custom phonemes property
-if not Token.has_extension("phonemes"):
-    Token.set_extension("phonemes", default=None)
+from ..training.example import get_aligned_phonemes
+from ..util import register_attrs
+
+register_attrs()
 
 
 def phoneme_score(examples: Iterable[Example], **kwargs) -> Dict[str, Any]:
