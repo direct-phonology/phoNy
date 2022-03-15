@@ -1,5 +1,5 @@
 from unittest import TestCase, skip
-from unittest.mock import ANY, Mock
+from unittest.mock import Mock
 
 import numpy as np
 import spacy
@@ -7,19 +7,7 @@ from spacy.training import Example
 from spacy.util import minibatch
 from thinc.api import compounding
 
-
-class MockCupyNdarray:
-    def __init__(self, data: np.ndarray):
-        self.data = data
-
-    def get(self):
-        return self.data
-
-    def any(self):
-        return self.data.any()
-
-    def argmax(self, axis: int):
-        return MockCupyNdarray(np.argmax(self.data, axis=axis))
+from .. import MockCupyNdarray
 
 
 class TestPhonemizer(TestCase):
