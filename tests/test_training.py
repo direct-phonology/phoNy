@@ -3,7 +3,7 @@ from unittest import TestCase
 import spacy
 from spacy.training import Example
 
-from phony.training.example import get_aligned_phonemes
+from phony.training import get_aligned_phonemes
 
 
 class TestGetAlignedPhonemes(TestCase):
