@@ -7,6 +7,8 @@ from spacy.training import Example
 from spacy.util import minibatch
 from thinc.api import compounding
 
+from phony.training import example_from_phonemes_dict
+
 from .. import MockCupyNdarray
 
 
@@ -21,9 +23,7 @@ class TestPhonemizer(TestCase):
         doc = nlp.make_doc("one two three")
         tag_ids = np.asarray([0, 1, 2])  # wʌn, tuː, θriː
         phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc[0]._.phonemes, "wʌn")
-        self.assertEqual(doc[1]._.phonemes, "tuː")
-        self.assertEqual(doc[2]._.phonemes, "θriː")
+        self.assertEqual(doc._.phonemes_, ["wʌn", "tuː", "θriː"])
 
     @skip("fixme — see https://github.com/direct-phonology/och-g2p/issues/12")
     def test_set_punct_annotations(self):
@@ -35,10 +35,8 @@ class TestPhonemizer(TestCase):
         phonemizer.add_label("θriː")
         doc = nlp.make_doc("one. two")
         tag_ids = np.asarray([1, 1, 2])  # pretend we predicted "wʌn" for "."
-        self.phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc[0]._.phonemes, "wʌn")
-        self.assertEqual(doc[1]._.phonemes, None)
-        self.assertEqual(doc[2]._.phonemes, "θriː")
+        phonemizer.set_annotations([doc], [tag_ids])
+        self.assertEqual(doc._.phonemes_, ["wʌn", None, "θriː"])
 
     def test_set_annotations_gpu(self):
         """should handle setting annotations based on predictions using gpu"""
@@ -50,9 +48,7 @@ class TestPhonemizer(TestCase):
         doc = nlp.make_doc("one two three")
         tag_ids = MockCupyNdarray(np.asarray([0, 1, 2]))  # wʌn, tuː, θriː
         phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc[0]._.phonemes, "wʌn")
-        self.assertEqual(doc[1]._.phonemes, "tuː")
-        self.assertEqual(doc[2]._.phonemes, "θriː")
+        self.assertEqual(doc._.phonemes_, ["wʌn", "tuː", "θriː"])
 
     def test_add_new_label(self):
         """should add provided label and return 1 if it didn't exist"""
@@ -129,62 +125,19 @@ class TestPhonemizer(TestCase):
         guesses = phonemizer.predict([doc])
         self.assertEqual(guesses[0].tolist(), [0, 1, 2])  # wʌn, tuː, θriː
 
-    def test_get_loss(self):
-        """should calculate loss and gradient for examples and guesses"""
+    def test_initialize(self):
+        """should initialize component with labels from training data"""
         nlp = spacy.blank("en")
         phonemizer = nlp.add_pipe("phonemizer")
-        phonemizer.add_label("wʌn")
-        phonemizer.add_label("tuː")
-        phonemizer.add_label("θriː")
-        phonemizer.model = Mock()
         doc = nlp.make_doc("one two three")
-        doc[0]._.phonemes = "wʌn"
-        doc[1]._.phonemes = "tuː"
-        doc[2]._.phonemes = "θriː"
-        example = Example.from_dict(doc, {})
-        guesses = np.asarray(
-            [[0.4, 0.5, 0.1], [0.2, 0.5, 0.3], [0.3, 0.1, 0.6]],
-            dtype=np.float32,
+        example = example_from_phonemes_dict(
+            doc,
+            {
+                "phonemes": ["wʌn", "tuː", "θriː"],
+            },
         )
-        phonemizer.model.ops.asarray2f = lambda d: np.asarray(d, dtype=np.float32)
-        loss, grad = phonemizer.get_loss([example], [guesses])
-        self.assertEqual(loss, 0.0)
-
-    @skip("todo")
-    def test_get_loss_aligned(self):
-        """should calculate correct loss for differing example alignments"""
-        pass
-
-    @skip("todo")
-    def test_get_loss_no_truths(self):
-        """should calculate correct loss when no examples have annotations"""
-        pass
-
-    def test_initialize_labels(self):
-        """should initialize component with labels sample from training data"""
-        nlp = spacy.blank("en")
-        phonemizer = nlp.add_pipe("phonemizer")
-        doc = nlp.make_doc("one two three")
-        doc[0]._.phonemes = "wʌn"
-        doc[1]._.phonemes = "tuː"
-        doc[2]._.phonemes = "θriː"
-        example = Example.from_dict(doc, {})
         phonemizer.initialize(lambda: [example])
-        self.assertEqual(phonemizer.labels, ("wʌn", "tuː", "θriː"))
-
-    def test_initialize_docs(self):
-        """should initialize component with doc sample from training data"""
-        nlp = spacy.blank("en")
-        phonemizer = nlp.add_pipe("phonemizer")
-        phonemizer.model = Mock()
-        doc = nlp.make_doc("one two three")
-        doc[0]._.phonemes = "wʌn"
-        doc[1]._.phonemes = "tuː"
-        doc[2]._.phonemes = "θriː"
-        example = Example(doc, doc)
-        example = Example.from_dict(doc, {})
-        phonemizer.initialize(lambda: [example])
-        phonemizer.model.initialize.assert_called_with(X=[doc], Y=ANY)
+        self.assertEqual(phonemizer.labels, ("tuː", "wʌn", "θriː"))  # sorted
 
     def test_initialize_no_data(self):
         """should error if initialized with docs missing training data"""
@@ -199,40 +152,41 @@ class TestPhonemizer(TestCase):
         """should handle initialization with misaligned/partial training data"""
         nlp = spacy.blank("en")
         nlp.add_pipe("phonemizer")
+
+        # partial data
         doc1 = nlp.make_doc("one two three four")
-        doc2 = nlp.make_doc("on e two three four")
-        doc1[0]._.phonemes = "wʌn"
-        doc1[1]._.phonemes = "tuː"
-        doc1[2]._.phonemes = "θriː"
-        doc2[0]._.phonemes = "ɒn"
-        doc2[2]._.phonemes = "tuː"
-        doc2[3]._.phonemes = "θriː"
-        examples = [Example.from_dict(doc1, {}), Example.from_dict(doc2, {})]
-        optimizer = nlp.initialize(get_examples=lambda: examples)
+        example1 = example_from_phonemes_dict(
+            doc1,
+            {
+                "phonemes": ["wʌn", "tuː", "θriː", None],
+            },
+        )
+
+        # misaligned partial data
+        doc2 = nlp.make_doc("one two three four")
+        example2 = example_from_phonemes_dict(
+            doc2,
+            {
+                "words": ["on", "e", "two", "three", "four"],
+                "phonemes": ["wʌ", "n", "tuː", "θriː", None],
+            },
+        )
+
+        # train for awhile, loss should resolve to 0
+        optimizer = nlp.initialize(get_examples=lambda: [example1, example2])
         for _ in range(50):
             losses = {}
-            self.nlp.update(examples, sgd=optimizer, losses=losses)
+            nlp.update([example1, example2], sgd=optimizer, losses=losses)
         self.assertLess(losses["phonemizer"], 0.00001)
+
+        # should still make correct predictions
+        doc = nlp("three two one")
+        self.assertEqual(doc._.phonemes_, ["θriː", "tuː", "wʌn"])
 
     @skip("todo")
     def test_train(self):
-        """results after training should be predictable on sample data"""
-        nlp = spacy.blank("en")
-        phonemizer = nlp.add_pipe("phonemizer")
-        doc1 = nlp.make_doc("one two three")
-        doc2 = nlp.make_doc("three two one two")
-        doc1[0]._.phonemes = "wʌn"
-        doc1[1]._.phonemes = "tuː"
-        doc1[2]._.phonemes = "θriː"
-        doc2[0]._.phonemes = "θriː"
-        doc2[1]._.phonemes = "tuː"
-        doc2[2]._.phonemes = "wʌn"
-        doc2[3]._.phonemes = "tuː"
-        examples = [Example.from_dict(doc1, {}), Example.from_dict(doc2, {})]
-        optimizer = phonemizer.train(lambda: examples)
-        for _ in range(50):
-            losses = {}
-            phonemizer.update(examples, sgd=optimizer, losses=losses)
+        """training should produce predictable results"""
+        pass
 
     def test_train_empty_data(self):
         """data with empty annotations shouldn't cause errors during training"""
