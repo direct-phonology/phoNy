@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import spacy
 
-from phony.tokens.doc import to_phonemes_array
+from phony.tokens import to_phonemes_array
 
 
 class TestDoc(TestCase):
