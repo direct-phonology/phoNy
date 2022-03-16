@@ -5,33 +5,18 @@ import numpy as np
 from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
-from spacy.scorer import Scorer
 from spacy.tokens import Doc
 from spacy.training import Example, validate_examples, validate_get_examples
-from spacy.util import check_lexeme_norms, registry
+from spacy.util import check_lexeme_norms
 from spacy.vocab import Vocab
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
 
+from .scorer import phoneme_score
 from .tokens import register_attrs
 from .training import get_aligned_phonemes
 
 register_attrs()
-
-
-def phoneme_score(examples: Iterable[Example], **kwargs) -> Dict[str, Any]:
-    return Scorer.score_token_attr(
-        examples,
-        attr="phonemes",
-        getter=lambda t, attr: t._.get(attr),
-        missing_values=set("_"),
-        **kwargs,
-    )
-
-
-@registry.scorers("phoneme_scorer.v1")
-def make_phoneme_scorer():
-    return phoneme_score
 
 
 default_model_config = """
