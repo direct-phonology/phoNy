@@ -9,7 +9,7 @@ from thinc.api import compounding
 
 from phony.training import example_from_phonemes_dict
 
-from .. import MockCupyNdarray
+from . import MockCupyNdarray
 
 
 class TestPhonemizer(TestCase):

@@ -13,8 +13,8 @@ from spacy.vocab import Vocab
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
 
-from ..tokens import register_attrs
-from ..training import get_aligned_phonemes
+from .tokens import register_attrs
+from .training import get_aligned_phonemes
 
 register_attrs()
 
