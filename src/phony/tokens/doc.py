@@ -1,5 +1,4 @@
-from typing import List
-
+import numpy as np
 from spacy.tokens import Doc
 
 from ..util import register_attrs
@@ -7,7 +6,7 @@ from ..util import register_attrs
 register_attrs()
 
 
-def to_phonemes_array(doc: Doc) -> List[int]:
+def to_phonemes_array(doc: Doc) -> np.ndarray:
     """Get the phoneme data for a Doc as an array of hashes."""
     # replacement for spacy's Doc.to_array(), which doesn't work on custom
     # extension attributes.
@@ -17,4 +16,4 @@ def to_phonemes_array(doc: Doc) -> List[int]:
         if token._.phonemes:
             gold_values[i] = token._.phonemes
 
-    return gold_values
+    return np.asarray(gold_values, dtype=np.uint64)
