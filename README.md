@@ -18,6 +18,17 @@ after cloning the repository:
 pip install -e ".[dev]"
 pre-commit install
 ```
+
+## testing
+to run tests:
+```sh
+python -m unittest
+```
+you can also generate a [coverage report](https://coverage.readthedocs.io/en/latest/):
+```sh
+coverage run --source=src -m unittest discover
+coverage report
+```
 ## building
 clear out any previously built packages before building:
 ```sh
