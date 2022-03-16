@@ -183,10 +183,34 @@ class TestPhonemizer(TestCase):
         doc = nlp("three two one")
         self.assertEqual(doc._.phonemes_, ["θriː", "tuː", "wʌn"])
 
-    @skip("todo")
     def test_train(self):
         """training should produce predictable results"""
-        pass
+        # set up pipeline and training docs
+        nlp = spacy.blank("en")
+        nlp.add_pipe("phonemizer")
+        examples = []
+        examples.append(
+            example_from_phonemes_dict(
+                nlp.make_doc("one two three"), {"phonemes": ["wʌn", "tuː", "θriː"]}
+            )
+        )
+        examples.append(
+            example_from_phonemes_dict(
+                nlp.make_doc("three two one one three"),
+                {"phonemes": ["θriː", "tuː", "wʌn", "wʌn", "θriː"]},
+            )
+        )
+
+        # train for awhile, loss should resolve to 0
+        optimizer = nlp.initialize(get_examples=lambda: examples)
+        for _ in range(50):
+            losses = {}
+            nlp.update(examples, sgd=optimizer, losses=losses)
+        self.assertLess(losses["phonemizer"], 0.00001)
+
+        # test the trained model
+        doc = nlp("one two one three")
+        self.assertEqual(doc._.phonemes_, ["wʌn", "tuː", "wʌn", "θriː"])
 
     def test_train_empty_data(self):
         """data with empty annotations shouldn't cause errors during training"""
