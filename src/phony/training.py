@@ -48,12 +48,10 @@ def example_from_phonemes_dict(predicted: Doc, data: dict) -> Example:
     if not phonemes_data:
         return example
 
-    # otherwise hash and add provided phoneme data to the reference doc
-    vocab = predicted.vocab
-    if "phonemes" in data:
-        if len(data["phonemes"] != len(example.reference)):
-            raise ValueError("Wrong number of phonemes in example data dict")
-        for i, p in enumerate(data["phonemes"]):
-            example.reference[i]._.phonemes = vocab.strings[p]
+    # otherwise add provided phoneme data to the reference doc
+    if len(phonemes_data) != len(example.reference):
+        raise ValueError("Wrong number of phonemes in example data dict")
+    for i, p in enumerate(phonemes_data):
+        example.reference[i]._.phonemes_ = p
 
     return example

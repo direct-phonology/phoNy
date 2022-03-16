@@ -148,8 +148,8 @@ class Phonemizer(TrainablePipe):
         tags = set()
         for example in get_examples():
             for token in example.reference:
-                if token._.phonemes:
-                    tags.add(token._.phonemes)
+                if token._.phonemes_:
+                    tags.add(token._.phonemes_)
         for tag in sorted(tags):
             self.add_label(tag)
 

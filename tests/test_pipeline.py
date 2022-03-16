@@ -36,7 +36,7 @@ class TestPhonemizer(TestCase):
         doc = nlp.make_doc("one. two")
         tag_ids = np.asarray([1, 1, 2])  # pretend we predicted "wʌn" for "."
         phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc._.phonemes_, ["wʌn", None, "θriː"])
+        self.assertEqual(doc._.phonemes_, ["wʌn", "", "θriː"])
 
     def test_set_annotations_gpu(self):
         """should handle setting annotations based on predictions using gpu"""
@@ -158,7 +158,7 @@ class TestPhonemizer(TestCase):
         example1 = example_from_phonemes_dict(
             doc1,
             {
-                "phonemes": ["wʌn", "tuː", "θriː", None],
+                "phonemes": ["wʌn", "tuː", "θriː", ""],
             },
         )
 
@@ -168,7 +168,7 @@ class TestPhonemizer(TestCase):
             doc2,
             {
                 "words": ["on", "e", "two", "three", "four"],
-                "phonemes": ["wʌ", "n", "tuː", "θriː", None],
+                "phonemes": ["wʌ", "n", "tuː", "θriː", ""],
             },
         )
 
