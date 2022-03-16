@@ -6,15 +6,15 @@ from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
 from spacy.scorer import Scorer
-from spacy.tokens import Doc, Token
+from spacy.tokens import Doc
 from spacy.training import Example, validate_examples, validate_get_examples
 from spacy.util import check_lexeme_norms, registry
 from spacy.vocab import Vocab
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
 
-from ..training.example import get_aligned_phonemes
-from ..util import register_attrs
+from ..tokens import register_attrs
+from ..training import get_aligned_phonemes
 
 register_attrs()
 
@@ -78,10 +78,11 @@ class Phonemizer(TrainablePipe):
     def add_label(self, label: str) -> int:
         """Add a label to the pipe. Return 0 if label already exists, else 1."""
         if not isinstance(label, str):
-            raise ValueError("Phonemizer labels must be strings")
+            raise ValueError(Errors.E187)
         if label in self.labels:
             return 0
         self.cfg["labels"].append(label)
+        self.vocab.strings.add(label)
         return 1
 
     def predict(self, docs: List[Doc]) -> List[Ints1d]:
@@ -118,7 +119,7 @@ class Phonemizer(TrainablePipe):
             if hasattr(doc_tag_ids, "get"):
                 doc_tag_ids = doc_tag_ids.get()
             for token, tag_id in zip(list(doc), doc_tag_ids):
-                token._.phonemes = labels[tag_id]
+                token._.phonemes = self.vocab.strings[labels[tag_id]]
 
     def get_loss(
         self,
@@ -128,10 +129,21 @@ class Phonemizer(TrainablePipe):
         """Compute the loss and gradient for a batch of examples and guesses."""
         # Create loss function
         validate_examples(examples, "Phonemizer.get_loss")
-        loss_func = SequenceCategoricalCrossentropy(normalize=False)
+        loss_func = SequenceCategoricalCrossentropy(
+            names=list(self.labels),
+            normalize=False,
+        )
 
-        # Compute loss & gradient
-        truths = self._examples_to_truth(examples)
+        # Get truth values from examples
+        truths = []
+        for example in examples:
+            truth = [
+                tag if tag != "" else None
+                for tag in get_aligned_phonemes(example, as_string=True)
+            ]
+            truths.append(truth)
+
+        # Compute loss and gradient
         gradient, loss = loss_func(guesses, truths)  # type: ignore
         if self.model.ops.xp.isnan(loss):
             raise ValueError(Errors.E910.format(name=self.name))
@@ -150,84 +162,28 @@ class Phonemizer(TrainablePipe):
         # Read all unique tags from the examples and add them
         tags = set()
         for example in get_examples():
-            for token in example.predicted:
+            for token in example.reference:
                 if token._.phonemes:
                     tags.add(token._.phonemes)
         for tag in sorted(tags):
             self.add_label(tag)
 
-        # Use the first 10 examples to sample Docs and labels
+        # Use the first 10 examples to sample Docs and tags
         doc_sample = []
         label_sample = []
-        n_labels = len(self.labels)
         for example in islice(get_examples(), 10):
-            doc_sample.append(example.reference)
-            labeled = self._examples_to_truth([example])
-            if labeled:
-                label_sample += labeled
-            else:
-                label_sample.append(
-                    self.model.ops.alloc2f(len(example.reference), n_labels)
-                )
-
-        # Initialize the model
-        self.model.initialize(X=doc_sample, Y=label_sample)
-
-    def _examples_to_truth(
-        self,
-        examples: Iterable[Example],
-    ) -> Optional[List[Floats2d]]:
-        """Get the gold-standard labels for a batch of examples."""
-        # Handle cases where there are no annotations in any examples
-        tag_count = 0
-        for example in examples:
-            tag_count += len(
-                list(filter(None, [token._.phonemes for token in example.predicted]))
-            )
-        if tag_count == 0:
-            return None
-
-        # Get all the true labels
-        truths = []
-        for example in examples:
-            gold_tags = self._get_aligned_phonemes(example)
-
-            # Make a one-hot array for correct tag for each token
+            doc_sample.append(example.predicted)
+            gold_tags = get_aligned_phonemes(example, as_string=True)
             gold_array = [
                 [1.0 if tag == gold_tag else 0.0 for tag in self.labels]
                 for gold_tag in gold_tags
             ]
-            truths.append(self.model.ops.asarray2f(gold_array))  # type: ignore
+            label_sample.append(self.model.ops.asarray2f(gold_array))  # type: ignore
 
-        return truths
-
-    def _get_aligned_phonemes(self, example: Example) -> List[Optional[str]]:
-        """Get the aligned phonology data for a training Example."""
-        # adapted Doc.to_array() from:
-        # https://github.com/explosion/spaCy/blob/master/spacy/tokens/doc.pyx
-        gold_values = np.zeros((len(example.reference),), dtype=np.uint64)
-        for i, token in enumerate(example.reference):
-            if token._.phonemes:
-                gold_values[i] = token._.phonemes
-
-        # adapted Example.get_aligned() from:
-        # https://github.com/explosion/spaCy/blob/master/spacy/training/example.pyx
-        align = example.alignment.x2y
-        output: List[Optional[str]] = [None] * len(example.predicted)
-        for token in example.predicted:
-            values = gold_values[align[token.i].dataXd]
-            values = values.ravel()
-            if len(values) == 0:
-                output[token.i] = None
-            elif len(values) == 1:
-                output[token.i] = values[0]
-            elif len(set(list(values))) == 1:
-                # if all aligned tokens have the same value, use it
-                output[token.i] = values[0]
-            else:
-                output[token.i] = None
-
-        return output
+        # Initialize the model
+        assert len(label_sample) > 0, Errors.E923.format(name=self.name)
+        assert len(doc_sample) > 0, Errors.E923.format(name=self.name)
+        self.model.initialize(X=doc_sample, Y=label_sample)
 
 
 @Language.factory(
@@ -237,7 +193,7 @@ class Phonemizer(TrainablePipe):
         "model": DEFAULT_PHONEMIZER_MODEL,
         "scorer": {"@scorers": "phoneme_scorer.v1"},
     },
-    default_score_weights={"phon_acc": 1.0},
+    default_score_weights={"phoneme_acc": 1.0},
 )
 def make_phonemizer(
     nlp: Language,
