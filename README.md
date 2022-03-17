@@ -27,7 +27,7 @@ python -m unittest
 you can also generate a [coverage report](https://coverage.readthedocs.io/en/latest/):
 ```sh
 coverage run --source=src -m unittest discover
-coverage report
+coverage report -m
 ```
 ## building
 clear out any previously built packages before building:
