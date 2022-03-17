@@ -30,7 +30,7 @@ depth = 4
 embed_size = 2000
 window_size = 1
 maxout_pieces = 3
-subword_features = false
+subword_features = true
 """
 DEFAULT_PHONEMIZER_MODEL = Config().from_str(default_model_config)["model"]
 
