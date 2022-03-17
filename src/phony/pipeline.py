@@ -109,7 +109,6 @@ class Phonemizer(TrainablePipe):
     ) -> Tuple[float, List[Floats2d]]:
         """Compute the loss and gradient for a batch of examples and guesses."""
         # Create loss function
-        validate_examples(examples, "Phonemizer.get_loss")
         loss_func = SequenceCategoricalCrossentropy(
             names=list(self.labels),
             normalize=False,
@@ -137,9 +136,6 @@ class Phonemizer(TrainablePipe):
         nlp: Optional[Language] = None,
     ):
         """Initialize the pipe for training using a set of examples."""
-        validate_get_examples(get_examples, "Phonemizer.initialize")
-        check_lexeme_norms(self.vocab, "phonemizer")
-
         # Read all unique tags from the examples and add them
         tags = set()
         for example in get_examples():
