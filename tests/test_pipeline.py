@@ -23,7 +23,7 @@ class TestPhonemizer(TestCase):
         doc = nlp.make_doc("one two three")
         tag_ids = np.asarray([0, 1, 2])  # wʌn, tuː, θriː
         phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc._.phonemes_, ["wʌn", "tuː", "θriː"])
+        self.assertEqual(doc._.phonemes, ["wʌn", "tuː", "θriː"])
 
     @skip("fixme — see https://github.com/direct-phonology/och-g2p/issues/12")
     def test_set_punct_annotations(self):
@@ -36,7 +36,7 @@ class TestPhonemizer(TestCase):
         doc = nlp.make_doc("one. two")
         tag_ids = np.asarray([1, 1, 2])  # pretend we predicted "wʌn" for "."
         phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc._.phonemes_, ["wʌn", "", "θriː"])
+        self.assertEqual(doc._.phonemes, ["wʌn", None, "θriː"])
 
     def test_set_annotations_gpu(self):
         """should handle setting annotations based on predictions using gpu"""
@@ -48,7 +48,7 @@ class TestPhonemizer(TestCase):
         doc = nlp.make_doc("one two three")
         tag_ids = MockCupyNdarray(np.asarray([0, 1, 2]))  # wʌn, tuː, θriː
         phonemizer.set_annotations([doc], [tag_ids])
-        self.assertEqual(doc._.phonemes_, ["wʌn", "tuː", "θriː"])
+        self.assertEqual(doc._.phonemes, ["wʌn", "tuː", "θriː"])
 
     def test_add_new_label(self):
         """should add provided label and return 1 if it didn't exist"""
@@ -126,18 +126,16 @@ class TestPhonemizer(TestCase):
         self.assertEqual(guesses[0].tolist(), [0, 1, 2])  # wʌn, tuː, θriː
 
     def test_initialize(self):
-        """should initialize component with labels from training data"""
+        """should initialize component with sorted labels from training data"""
         nlp = spacy.blank("en")
         phonemizer = nlp.add_pipe("phonemizer")
         doc = nlp.make_doc("one two three")
         example = example_from_phonemes_dict(
             doc,
-            {
-                "phonemes": ["wʌn", "tuː", "θriː"],
-            },
+            {"phonemes": ["wʌn", "tuː", "θriː"]},
         )
         phonemizer.initialize(lambda: [example])
-        self.assertEqual(phonemizer.labels, ("tuː", "wʌn", "θriː"))  # sorted
+        self.assertEqual(phonemizer.labels, ("tuː", "wʌn", "θriː"))
 
     def test_initialize_no_data(self):
         """should error if initialized with docs missing training data"""
@@ -157,9 +155,7 @@ class TestPhonemizer(TestCase):
         doc1 = nlp.make_doc("one two three four")
         example1 = example_from_phonemes_dict(
             doc1,
-            {
-                "phonemes": ["wʌn", "tuː", "θriː", ""],
-            },
+            {"phonemes": ["wʌn", "tuː", "θriː", None]},
         )
 
         # misaligned partial data
@@ -168,20 +164,19 @@ class TestPhonemizer(TestCase):
             doc2,
             {
                 "words": ["on", "e", "two", "three", "four"],
-                "phonemes": ["wʌ", "n", "tuː", "θriː", ""],
+                "phonemes": ["wʌ", "n", "tuː", "θriː", None],
             },
         )
 
-        # train for awhile, loss should resolve to 0
+        # train for awhile
         optimizer = nlp.initialize(get_examples=lambda: [example1, example2])
         for _ in range(50):
             losses = {}
             nlp.update([example1, example2], sgd=optimizer, losses=losses)
-        self.assertLess(losses["phonemizer"], 0.00001)
 
         # should still make correct predictions
         doc = nlp("three two one")
-        self.assertEqual(doc._.phonemes_, ["θriː", "tuː", "wʌn"])
+        self.assertEqual(doc._.phonemes, ["θriː", "tuː", "wʌn"])
 
     def test_train(self):
         """training should produce predictable results"""
@@ -191,7 +186,8 @@ class TestPhonemizer(TestCase):
         examples = []
         examples.append(
             example_from_phonemes_dict(
-                nlp.make_doc("one two three"), {"phonemes": ["wʌn", "tuː", "θriː"]}
+                nlp.make_doc("one two three"),
+                {"phonemes": ["wʌn", "tuː", "θriː"]},
             )
         )
         examples.append(
@@ -210,7 +206,7 @@ class TestPhonemizer(TestCase):
 
         # test the trained model
         doc = nlp("one two one three")
-        self.assertEqual(doc._.phonemes_, ["wʌn", "tuː", "wʌn", "θriː"])
+        self.assertEqual(doc._.phonemes, ["wʌn", "tuː", "wʌn", "θriː"])
 
     def test_train_empty_data(self):
         """data with empty annotations shouldn't cause errors during training"""
