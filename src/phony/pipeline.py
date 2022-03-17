@@ -114,16 +114,8 @@ class Phonemizer(TrainablePipe):
             normalize=False,
         )
 
-        # Get truth values from examples
-        truths = []
-        for example in examples:
-            truth = [
-                tag if tag != "" else None
-                for tag in get_aligned_phonemes(example, as_string=True)
-            ]
-            truths.append(truth)
-
         # Compute loss and gradient
+        truths = self._examples_to_truth(examples)
         gradient, loss = loss_func(guesses, truths)  # type: ignore
         if self.model.ops.xp.isnan(loss):
             raise ValueError(Errors.E910.format(name=self.name))
@@ -140,27 +132,33 @@ class Phonemizer(TrainablePipe):
         tags = set()
         for example in get_examples():
             for token in example.reference:
-                if token._.phonemes_:
-                    tags.add(token._.phonemes_)
+                if token._.phonemes:
+                    tags.add(token._.phonemes)
         for tag in sorted(tags):
             self.add_label(tag)
+        self._require_labels()
 
         # Use the first 10 examples to sample Docs and tags
-        doc_sample = []
-        label_sample = []
-        for example in islice(get_examples(), 10):
-            doc_sample.append(example.predicted)
-            gold_tags = get_aligned_phonemes(example, as_string=True)
-            gold_array = [
-                [1.0 if tag == gold_tag else 0.0 for tag in self.labels]
-                for gold_tag in gold_tags
-            ]
-            label_sample.append(self.model.ops.asarray2f(gold_array))  # type: ignore
+        examples = list(islice(get_examples(), 10))
+        doc_sample = [example.predicted for example in examples]
+        label_sample = self._examples_to_truth(examples)
 
         # Initialize the model
         assert len(label_sample) > 0, Errors.E923.format(name=self.name)
         assert len(doc_sample) > 0, Errors.E923.format(name=self.name)
         self.model.initialize(X=doc_sample, Y=label_sample)
+
+    def _examples_to_truth(self, examples: Iterable[Example]) -> List[Floats2d]:
+        """Convert a batch of examples to a batch of one-hot truth vectors."""
+        truths = []
+        for example in examples:
+            gold_tags = get_aligned_phonemes(example)
+            gold_array = [
+                [1.0 if tag == gold_tag else 0.0 for tag in self.labels]
+                for gold_tag in gold_tags
+            ]
+            truths.append(self.model.ops.asarray2f(gold_array))  # type: ignore
+        return truths
 
 
 @Language.factory(
