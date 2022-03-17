@@ -1,4 +1,4 @@
-from itertools import islice, zip_longest
+from itertools import islice
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
@@ -6,8 +6,7 @@ from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
 from spacy.tokens import Doc
-from spacy.training import Example, validate_examples, validate_get_examples
-from spacy.util import check_lexeme_norms
+from spacy.training import Example
 from spacy.vocab import Vocab
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
@@ -63,11 +62,10 @@ class Phonemizer(TrainablePipe):
     def add_label(self, label: str) -> int:
         """Add a label to the pipe. Return 0 if label already exists, else 1."""
         if not isinstance(label, str):
-            raise ValueError(Errors.E187)
+            raise ValueError("Phonemizer labels must be strings")
         if label in self.labels:
             return 0
         self.cfg["labels"].append(label)
-        self.vocab.strings.add(label)
         return 1
 
     def predict(self, docs: List[Doc]) -> List[Ints1d]:
@@ -98,13 +96,11 @@ class Phonemizer(TrainablePipe):
     def set_annotations(self, docs: Iterable[Doc], tag_ids: List[Ints1d]) -> None:
         """Annotate a batch of Docs, using pre-computed IDs."""
         labels = self.labels
-        for doc, doc_tag_ids in zip_longest(docs, tag_ids):
-            if not doc or not doc_tag_ids.any():
-                continue
+        for doc, doc_tag_ids in zip(docs, tag_ids):
             if hasattr(doc_tag_ids, "get"):
                 doc_tag_ids = doc_tag_ids.get()
             for token, tag_id in zip(list(doc), doc_tag_ids):
-                token._.phonemes = self.vocab.strings[labels[tag_id]]
+                token._.phonemes = labels[tag_id]
 
     def get_loss(
         self,
