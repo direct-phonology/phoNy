@@ -36,6 +36,3 @@ def register_attrs():
             getter=get_doc_phonemes,
             setter=set_doc_phonemes,
         )
-
-
-register_attrs()
