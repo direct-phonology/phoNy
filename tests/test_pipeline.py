@@ -159,12 +159,12 @@ class TestPhonemizer(TestCase):
         )
 
         # misaligned partial data
-        doc2 = nlp.make_doc("one two three four")
+        doc2 = nlp.make_doc("on e two three four")
         example2 = example_from_phonemes_dict(
             doc2,
             {
-                "words": ["on", "e", "two", "three", "four"],
-                "phonemes": ["wʌ", "n", "tuː", "θriː", None],
+                "words": ["one", "two", "three", "four"],
+                "phonemes": ["wʌn", "tuː", "θriː", None],
             },
         )
 
