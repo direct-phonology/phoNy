@@ -117,8 +117,6 @@ class Phonemizer(TrainablePipe):
         # Compute loss and gradient
         truths = self._examples_to_truth(examples)
         gradient, loss = loss_func(guesses, truths)  # type: ignore
-        if self.model.ops.xp.isnan(loss):
-            raise ValueError(Errors.E910.format(name=self.name))
         return float(loss), gradient
 
     def initialize(

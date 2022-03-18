@@ -15,11 +15,7 @@ def get_aligned_phonemes(example: Example) -> List[Optional[str]]:
     for token in example.predicted:
         values = gold_values[align[token.i].dataXd]
         values = values.ravel()
-        if len(values) == 0:
-            output[token.i] = None
-        elif len(values) == 1:
-            output[token.i] = values[0]
-        elif len(set(list(values))) == 1:
+        if len(values) == 1:
             output[token.i] = values[0]
         else:
             output[token.i] = None

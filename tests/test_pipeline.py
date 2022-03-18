@@ -152,19 +152,17 @@ class TestPhonemizer(TestCase):
         nlp.add_pipe("phonemizer")
 
         # partial data
-        doc1 = nlp.make_doc("one two three four")
         example1 = example_from_phonemes_dict(
-            doc1,
-            {"phonemes": ["wʌn", "tuː", "θriː", None]},
+            nlp.make_doc("four one two three five"),
+            {"phonemes": [None, "wʌn", "tuː", "θriː", None]},
         )
 
         # misaligned partial data
-        doc2 = nlp.make_doc("on e two three four")
         example2 = example_from_phonemes_dict(
-            doc2,
+            nlp.make_doc("five one two three four"),
             {
-                "words": ["one", "two", "three", "four"],
-                "phonemes": ["wʌn", "tuː", "θriː", None],
+                "words": ["five", "on", "e", "two", "three", "four"],
+                "phonemes": [None, "wʌ", "n", "tuː", "θriː", None],
             },
         )
 
@@ -175,8 +173,8 @@ class TestPhonemizer(TestCase):
             nlp.update([example1, example2], sgd=optimizer, losses=losses)
 
         # should still make correct predictions
-        doc = nlp("three two one")
-        self.assertEqual(doc._.phonemes, ["θriː", "tuː", "wʌn"])
+        doc = nlp("two three")
+        self.assertEqual(doc._.phonemes, ["tuː", "θriː"])
 
     def test_train(self):
         """training should produce predictable results"""
