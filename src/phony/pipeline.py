@@ -1,36 +1,38 @@
-from itertools import islice, zip_longest
+from itertools import islice
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-import numpy
+import numpy as np
 from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
-from spacy.scorer import Scorer
-from spacy.tokens import Doc, Token
-from spacy.training import Example, validate_examples, validate_get_examples
-from spacy.util import check_lexeme_norms, registry
+from spacy.tokens import Doc
+from spacy.training import Example
 from spacy.vocab import Vocab
-from thinc.api import Model, SequenceCategoricalCrossentropy
+from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints1d
 
-# register custom phonemes property
-if not Token.has_extension("phonemes"):
-    Token.set_extension("phonemes", default=None)
+from .scorer import phoneme_score
+from .tokens import register_attrs
+from .training import get_aligned_phonemes
+
+register_attrs()
 
 
-def phoneme_score(examples: Iterable[Example], **kwargs) -> Dict[str, Any]:
-    return Scorer.score_token_attr(
-        examples,
-        attr="phonemes",
-        getter=lambda t, attr: t._.get(attr),
-        missing_values=set("_"),
-        **kwargs,
-    )
+default_model_config = """
+[model]
+@architectures = "spacy.Tagger.v1"
 
-
-@registry.scorers("phoneme_scorer.v1")
-def make_phoneme_scorer():
-    return phoneme_score
+[model.tok2vec]
+@architectures = "spacy.HashEmbedCNN.v2"
+pretrained_vectors = null
+width = 96
+depth = 4
+embed_size = 2000
+window_size = 1
+maxout_pieces = 3
+subword_features = true
+"""
+DEFAULT_PHONEMIZER_MODEL = Config().from_str(default_model_config)["model"]
 
 
 class Phonemizer(TrainablePipe):
@@ -85,7 +87,7 @@ class Phonemizer(TrainablePipe):
         guesses = []
         for doc_scores in scores:
             doc_guesses = doc_scores.argmax(axis=1)
-            if not isinstance(doc_guesses, numpy.ndarray):
+            if not isinstance(doc_guesses, np.ndarray):
                 doc_guesses = doc_guesses.get()
             guesses.append(doc_guesses)
         assert len(guesses) == len(docs)
@@ -94,9 +96,9 @@ class Phonemizer(TrainablePipe):
     def set_annotations(self, docs: Iterable[Doc], tag_ids: List[Ints1d]) -> None:
         """Annotate a batch of Docs, using pre-computed IDs."""
         labels = self.labels
-        for doc, doc_tag_ids in zip_longest(docs, tag_ids):
-            if not doc or not doc_tag_ids.any():
-                continue
+        for doc, doc_tag_ids in zip(docs, tag_ids):
+            if hasattr(doc_tag_ids, "get"):
+                doc_tag_ids = doc_tag_ids.get()
             for token, tag_id in zip(list(doc), doc_tag_ids):
                 token._.phonemes = labels[tag_id]
 
@@ -107,10 +109,12 @@ class Phonemizer(TrainablePipe):
     ) -> Tuple[float, List[Floats2d]]:
         """Compute the loss and gradient for a batch of examples and guesses."""
         # Create loss function
-        validate_examples(examples, "Phonemizer.get_loss")
-        loss_func = SequenceCategoricalCrossentropy(normalize=False)
+        loss_func = SequenceCategoricalCrossentropy(
+            names=list(self.labels),
+            normalize=False,
+        )
 
-        # Compute loss & gradient
+        # Compute loss and gradient
         truths = self._examples_to_truth(examples)
         gradient, loss = loss_func(guesses, truths)  # type: ignore
         if self.model.ops.xp.isnan(loss):
@@ -124,9 +128,6 @@ class Phonemizer(TrainablePipe):
         nlp: Optional[Language] = None,
     ):
         """Initialize the pipe for training using a set of examples."""
-        validate_get_examples(get_examples, "Phonemizer.initialize")
-        check_lexeme_norms(self.vocab, "phonemizer")
-
         # Read all unique tags from the examples and add them
         tags = set()
         for example in get_examples():
@@ -135,60 +136,39 @@ class Phonemizer(TrainablePipe):
                     tags.add(token._.phonemes)
         for tag in sorted(tags):
             self.add_label(tag)
+        self._require_labels()
 
-        # Use the first 10 examples to sample Docs and labels
-        doc_sample = []
-        label_sample = []
-        for example in islice(get_examples(), 10):
-            doc_sample.append(example.reference)
-            label_sample.append(self._examples_to_truth([example]))
+        # Use the first 10 examples to sample Docs and tags
+        examples = list(islice(get_examples(), 10))
+        doc_sample = [example.predicted for example in examples]
+        label_sample = self._examples_to_truth(examples)
 
         # Initialize the model
+        assert len(label_sample) > 0, Errors.E923.format(name=self.name)
+        assert len(doc_sample) > 0, Errors.E923.format(name=self.name)
         self.model.initialize(X=doc_sample, Y=label_sample)
 
-    def _examples_to_truth(
-        self,
-        examples: Iterable[Example],
-    ) -> List[Floats2d]:
-        """Get the gold-standard labels for a batch of examples."""
-        # Get all the true labels
+    def _examples_to_truth(self, examples: Iterable[Example]) -> List[Floats2d]:
+        """Convert a batch of examples to a batch of one-hot truth vectors."""
         truths = []
         for example in examples:
-            gold_tags = self._get_aligned_phonemes(example)
-
-            # Make a one-hot array for correct tag for each token
+            gold_tags = get_aligned_phonemes(example)
             gold_array = [
                 [1.0 if tag == gold_tag else 0.0 for tag in self.labels]
                 for gold_tag in gold_tags
             ]
             truths.append(self.model.ops.asarray2f(gold_array))  # type: ignore
-
         return truths
-
-    def _get_aligned_phonemes(self, example: Example) -> List[Optional[str]]:
-        """Get the aligned phonology data for a training Example."""
-        alignment = example.alignment.x2y
-        gold_phon = [token._.phonemes for token in example.reference]
-        output: List[Optional[str]] = [None] * len(example.predicted)
-
-        # Handle case where example has no tokens
-        if not output:
-            return []
-
-        for token in example.predicted:
-            if not token.is_alpha:
-                output[token.i] = None
-            else:
-                output[token.i] = gold_phon[alignment[token.i].dataXd[0][0]]
-
-        return output
 
 
 @Language.factory(
     "phonemizer",
     assigns=["token._.phonemes"],
-    default_config={"scorer": {"@scorers": "phoneme_scorer.v1"}},
-    default_score_weights={"phon_acc": 1.0},
+    default_config={
+        "model": DEFAULT_PHONEMIZER_MODEL,
+        "scorer": {"@scorers": "phoneme_scorer.v1"},
+    },
+    default_score_weights={"phoneme_acc": 1.0},
 )
 def make_phonemizer(
     nlp: Language,

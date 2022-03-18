@@ -130,3 +130,6 @@ dmypy.json
 
 # VSCode project settings
 .vscode/
+
+# Mac thumbnails
+.DS_Store
