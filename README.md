@@ -1,6 +1,6 @@
 # phoNy: phonology in spaCy!
 [![ci status](https://github.com/direct-phonology/phoNy/actions/workflows/ci.yml/badge.svg)](https://github.com/direct-phonology/phoNy/actions/workflows/ci.yml)
-[![pypi version](https://img.shields.io/pypi/v/spacy-phony.svg?style=flat)](https://pypi.org/project/spacy-phony]/)
+[![pypi version](https://img.shields.io/pypi/v/spacy-phony.svg?style=flat)](https://pypi.org/project/spacy-phony/)
 [![code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 phoNy is a spaCy extension that adds pipeline components, models, and features for working with phonology.
