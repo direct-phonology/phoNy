@@ -99,8 +99,14 @@ class Phonemizer(TrainablePipe):
         for doc, doc_tag_ids in zip(docs, tag_ids):
             if hasattr(doc_tag_ids, "get"):
                 doc_tag_ids = doc_tag_ids.get()
+
+            # Set the phonemes for each token; only tokens with alphabetic
+            # characters get phoneme data
             for token, tag_id in zip(list(doc), doc_tag_ids):
-                token._.phonemes = labels[tag_id]
+                if token.is_alpha:
+                    token._.phonemes = labels[tag_id]
+                else:
+                    token._.phonemes = None
 
     def get_loss(
         self,

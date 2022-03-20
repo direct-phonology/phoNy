@@ -25,7 +25,6 @@ class TestPhonemizer(TestCase):
         phonemizer.set_annotations([doc], [tag_ids])
         self.assertEqual(doc._.phonemes, ["wʌn", "tuː", "θriː"])
 
-    @skip("fixme — see https://github.com/direct-phonology/och-g2p/issues/12")
     def test_set_punct_annotations(self):
         """should not set an annotation for non-alphabetic tokens"""
         nlp = spacy.blank("en")
@@ -34,7 +33,7 @@ class TestPhonemizer(TestCase):
         phonemizer.add_label("tuː")
         phonemizer.add_label("θriː")
         doc = nlp.make_doc("one. two")
-        tag_ids = np.asarray([1, 1, 2])  # pretend we predicted "wʌn" for "."
+        tag_ids = np.asarray([0, 1, 2])  # pretend we predicted "tuː" for "."
         phonemizer.set_annotations([doc], [tag_ids])
         self.assertEqual(doc._.phonemes, ["wʌn", None, "θriː"])
 
