@@ -77,7 +77,7 @@ class Phonemizer(TrainablePipe):
             guesses = [self.model.ops.alloc1i(n_labels) for _ in docs]
             return guesses
 
-        # Get the scores predicted by the model; we should have have the same
+        # Get the scores predicted by the model; we should have the same
         # (non-zero) number of both score sets and docs
         scores = self.model.predict(docs)
         assert len(scores) == len(docs), (len(scores), len(docs))
