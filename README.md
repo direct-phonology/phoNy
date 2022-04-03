@@ -30,6 +30,8 @@ coverage run --source=src -m unittest discover
 coverage report -m
 ```
 ## building
+remove the `-dev` prefix from the version in `setup.cfg` before the release.
+
 clear out any previously built packages before building:
 ```sh
 rm -rf dist/*
@@ -46,5 +48,6 @@ if everything looks ok, upload to the real PyPI:
 ```sh
 python -m twine upload dist/*
 ```
+bump the version number to the next version with a `-dev` prefix in setup.cfg after releasing.
 ## license
 code is licensed under the [MIT license](LICENSE).
