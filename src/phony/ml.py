@@ -1,5 +1,7 @@
-from typing import List, Tuple
+from abc import ABC, abstractmethod
+from typing import Generic, List, Tuple, TypeVar
 
+import numpy as np
 from spacy.tokens import Doc
 from spacy.util import registry
 from thinc.api import Model, MultiSoftmax, chain, with_array
@@ -27,3 +29,20 @@ def build_multi_tagger_model(
     model.set_ref("softmax", output_layer)
     model.set_ref("output_layer", output_layer)
     return model
+
+
+T = TypeVar("T", covariant=True)
+
+
+class Arrayable(ABC, Generic[T]):
+    @abstractmethod
+    def to_array(self) -> np.ndarray:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def from_array(cls, array: np.ndarray) -> T:
+        raise NotImplementedError
+
+    def similarity(self, other: "Arrayable") -> float:
+        return 1.0 / float(1 + np.linalg.norm(self.to_array() - other.to_array()))
